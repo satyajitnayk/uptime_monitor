@@ -25,6 +25,10 @@ func main() {
 	http.HandleFunc("/health", healthHandler)
 
 	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3001"
+	}
+
 	fmt.Printf("Server is running on port %s\n", port)
 	addr := ":" + port
 	if err := http.ListenAndServe(addr, nil); err != nil {
