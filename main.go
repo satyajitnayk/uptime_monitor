@@ -1,7 +1,8 @@
+// main.go
 package main
 
 import (
-	"encoding/json"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,54 +10,70 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 var startTime time.Time
 
+func GetPort() string {
+	port := os.Getenv("PORT")
+	if port == "" {
+		return "3001"
+	}
+	return port
+}
+
+func TestDBConnection(db *sql.DB) error {
+	err := db.Ping()
+	if err != nil {
+		return fmt.Errorf("failed to test the database connection: %v", err)
+	}
+	return nil
+}
+
+func ConnectDB() (*sql.DB, error) {
+	// Get database connection parameters from environment variables
+	user := os.Getenv("DB_USER")
+	dbname := os.Getenv("DB_NAME")
+	password := os.Getenv("DB_PASSWORD")
+
+	// Construct the connection string
+	connStr := fmt.Sprintf("user=%s dbname=%s password=%s sslmode=disable", user, dbname, password)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
 func main() {
 	startTime = time.Now()
 
-	// Load the .env file in the current directory
-	err := godotenv.Load()
-	if err != nil {
+	if err := godotenv.Load(); err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
-	http.HandleFunc("/health", healthHandler)
+	// Connect to the PostgreSQL database
+	db, err := ConnectDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3001"
+	// Test the connection
+	if err := TestDBConnection(db); err != nil {
+		log.Fatal(err)
 	}
 
+	fmt.Println("Connected to the PostgreSQL database")
+
+	http.HandleFunc("/health", healthHandler)
+
+	port := GetPort()
+	addr := fmt.Sprintf(":%s", port)
 	fmt.Printf("Server is running on port %s\n", port)
-	addr := ":" + port
+
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	uptime := time.Since(startTime).Seconds()
-
-	// struct to represent the JSON response
-	response := struct {
-		Status      string  `json:"status"`
-		UptimeInSec float64 `json:"uptimeInSec"`
-	}{
-		Status:      "ok",
-		UptimeInSec: uptime,
-	}
-
-	jsonResponse, err := json.Marshal(response)
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// set content type to json
-	w.Header().Set("Content-Type", "application/json")
-
-	// Write the JSON response to the response writer
-	w.Write(jsonResponse)
 }
