@@ -34,7 +34,7 @@ func main() {
 	defer db.Close()
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		health.HealthHandler(w, r, startTime)
+		health.HealthHandler(w, r, db, startTime)
 	})
 
 	port := GetPort()

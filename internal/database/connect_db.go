@@ -25,12 +25,6 @@ func ConnectDB() (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// Ping the database to check if it's reachable
-	if err := db.DB().Ping(); err != nil {
-		db.Close()
-		return nil, err
-	}
-
 	// Enable Logger, show detailed log
 	db.LogMode(true)
 
