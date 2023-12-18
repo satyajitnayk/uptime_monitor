@@ -13,5 +13,5 @@ docker build -t uptime_monitor .
 ## Run the Docker Containe
 
 ```sh
-docker run -p 3001:80 -it uptime_monitor
+docker run -p 8000:8080 -it uptime_monitor
 ```
