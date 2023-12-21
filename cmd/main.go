@@ -54,6 +54,10 @@ func main() {
 		handlers.RegisterUserHandler(w, r, db)
 	}).Methods("POST")
 
+	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		handlers.LoginHandler(w, r, db)
+	}).Methods("POST")
+
 	port := GetPort()
 	addr := fmt.Sprintf(":%s", port)
 	fmt.Printf("Server is running on port %s\n", port)

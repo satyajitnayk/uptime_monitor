@@ -2,11 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/jinzhu/gorm"
+	"github.com/satyajitnayk/uptime_monitor/internal/auth"
 	"github.com/satyajitnayk/uptime_monitor/internal/models"
 	"github.com/satyajitnayk/uptime_monitor/repositories"
 	"golang.org/x/crypto/bcrypt"
@@ -23,11 +22,14 @@ type RegisterResponse struct {
 	ErrorMessage string `json:"error,omitempty"`
 }
 
-type UserResponse struct {
-	ID        uint      `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	Token        string `json:"token,omitempty"`
+	ErrorMessage string `json:"error,omitempty"`
 }
 
 func hashPassword(password string) (string, error) {
@@ -62,7 +64,6 @@ func RegisterUserHandler(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	if err != nil {
 		response := RegisterResponse{ErrorMessage: "Failed to hash password"}
 		sendJSONResponse(w, http.StatusInternalServerError, response)
-		fmt.Println("Error hashing password:", err)
 		return
 	}
 
@@ -76,10 +77,52 @@ func RegisterUserHandler(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	if err := userRepo.Create(user); err != nil {
 		response := RegisterResponse{ErrorMessage: "Failed to create user"}
 		sendJSONResponse(w, http.StatusInternalServerError, response)
-		fmt.Println("Error creating user:", err)
 		return
 	}
 
 	response := RegisterResponse{Message: "User registered successfully"}
 	sendJSONResponse(w, http.StatusCreated, response)
+}
+
+func LoginHandler(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	var request LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		response := LoginResponse{ErrorMessage: "Invalid login payload"}
+		sendJSONResponse(w, http.StatusBadRequest, response)
+		return
+	}
+
+	if request.Email == "" || request.Password == "" {
+		response := LoginResponse{ErrorMessage: "Email and password are required"}
+		sendJSONResponse(w, http.StatusBadRequest, response)
+		return
+	}
+
+	userRepo := repositories.NewUserRepository(db)
+
+	user, err := userRepo.FindByEmail(request.Email)
+	if err != nil {
+		response := LoginResponse{ErrorMessage: "Failed to login"}
+		sendJSONResponse(w, http.StatusBadRequest, response)
+		return
+	}
+
+	// comapre password
+	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(request.Password)) == nil {
+		// create jwt
+		jwt, err := auth.GenerateJWT(request.Email)
+		if err != nil {
+			response := LoginResponse{ErrorMessage: "unable to generate token"}
+			sendJSONResponse(w, http.StatusInternalServerError, response)
+			return
+		} else {
+			response := LoginResponse{Token: jwt}
+			sendJSONResponse(w, http.StatusOK, response)
+			return
+		}
+	} else {
+		response := LoginResponse{ErrorMessage: "Failed to Login"}
+		sendJSONResponse(w, http.StatusUnauthorized, response)
+		return
+	}
 }
